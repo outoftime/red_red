@@ -1,0 +1,63 @@
+## RedRed
+
+RedRed is a library that uses Redis to provide invisible, atomic persistence for
+Ruby objects. It's at best a proof of concept; I have no intention that anyone
+ever use it for anything, especially in production. But it's kind of a cool
+idea.
+
+#### Usage
+
+    require 'red_red'
+
+    class Post < RedRed::Object
+      rattr_accessor :title
+      rattr_accessor :blog
+    end
+
+    class Blog < RedRed::Object
+      rattr_accessor :name
+    end
+
+    post = Post.new
+    post.title = 'My Cat Did The Funniest Thing!'
+    post.blog = Blog.new
+    post.blog.name = 'All about my cat'
+
+    post.redis_id #=> "f561b40e-65d6-11df-9014-0024e897e5d6"
+
+    # then sometime later
+
+    post = Post["f561b40e-65d6-11df-9014-0024e897e5d6"]
+    post.title #=> "My Cat Did The Funniest Thing!"
+    post.blog.name #=> "All about my cat"
+
+#### How it works
+
+The first time you set an attribute on a RedRed::Object, a UUID is generated
+for the object, and stored in memory. That UUID is used as a prefix for keys
+that contain attributes of that object.
+
+When you set an attribute, it's immediately written to Redis with a key that
+contains the object's UUID and the name of the attribute. If the attribute value
+is itself a RedRed::Object, then the key will reference that object's own UUID.
+Otherwise, it's just marshalled.
+
+#### To Do
+
+* Use constant-like semantics for object access by natural key
+* Support atomic operations on Redis scalar types (strings, numerics)
+* Support arrays (Redis lists), sets, sorted sets
+* Support hashes (not available natively in current Redis release)
+* Garbage collection???
+
+#### Caveats (or Why No One Should Use This)
+
+* Persisted objects live forever. There is no concept of deletion.
+  * This could maybe be handled with constant-like retrieval and GC
+* For performance, attributes are still stored in memory after first
+  retrieval / setting. So, object state can be inconsistent with persisted
+  state.
+* It makes lots and lots of queries to Redis. Redis is fast, but network latency
+  would probably preclude using this with a non-local Redis instance.
+
+### This is free software.
